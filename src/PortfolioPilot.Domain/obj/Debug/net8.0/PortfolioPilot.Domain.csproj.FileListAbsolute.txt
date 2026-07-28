@@ -1,0 +1,12 @@
+c:\Users\cool\Desktop\PortfolioPilot\src\PortfolioPilot.Domain\bin\Debug\net8.0\PortfolioPilot.Domain.deps.json
+c:\Users\cool\Desktop\PortfolioPilot\src\PortfolioPilot.Domain\bin\Debug\net8.0\PortfolioPilot.Domain.dll
+c:\Users\cool\Desktop\PortfolioPilot\src\PortfolioPilot.Domain\bin\Debug\net8.0\PortfolioPilot.Domain.pdb
+c:\Users\cool\Desktop\PortfolioPilot\src\PortfolioPilot.Domain\obj\Debug\net8.0\PortfolioPilot.Domain.GeneratedMSBuildEditorConfig.editorconfig
+c:\Users\cool\Desktop\PortfolioPilot\src\PortfolioPilot.Domain\obj\Debug\net8.0\PortfolioPilot.Domain.AssemblyInfoInputs.cache
+c:\Users\cool\Desktop\PortfolioPilot\src\PortfolioPilot.Domain\obj\Debug\net8.0\PortfolioPilot.Domain.AssemblyInfo.cs
+c:\Users\cool\Desktop\PortfolioPilot\src\PortfolioPilot.Domain\obj\Debug\net8.0\PortfolioPilot.Domain.csproj.CoreCompileInputs.cache
+c:\Users\cool\Desktop\PortfolioPilot\src\PortfolioPilot.Domain\obj\Debug\net8.0\PortfolioPilot.Domain.dll
+c:\Users\cool\Desktop\PortfolioPilot\src\PortfolioPilot.Domain\obj\Debug\net8.0\refint\PortfolioPilot.Domain.dll
+c:\Users\cool\Desktop\PortfolioPilot\src\PortfolioPilot.Domain\obj\Debug\net8.0\PortfolioPilot.Domain.pdb
+c:\Users\cool\Desktop\PortfolioPilot\src\PortfolioPilot.Domain\obj\Debug\net8.0\ref\PortfolioPilot.Domain.dll
+c:\Users\cool\Desktop\PortfolioPilot\src\PortfolioPilot.Domain\obj\Debug\net8.0\PortfolioPilot.Domain.csproj.AssemblyReference.cache
