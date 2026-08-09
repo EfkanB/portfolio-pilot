@@ -41,6 +41,24 @@ public class PortfolioService : IPortfolioService
         return _mapper.Map<PortfolioDto>(portfolio);
     }
 
+    public async Task<bool> DeletePortfolioAsync(Guid userId, Guid portfolioId, CancellationToken cancellationToken = default)
+    {
+        var portfolio = await _context.Portfolios
+            .Include(x => x.InvestmentFunds)
+            .FirstOrDefaultAsync(x => x.Id == portfolioId && x.UserId == userId, cancellationToken);
+
+        if (portfolio is null)
+        {
+            return false;
+        }
+
+        _context.InvestmentFunds.RemoveRange(portfolio.InvestmentFunds);
+        _context.Portfolios.Remove(portfolio);
+        await _context.SaveChangesAsync(cancellationToken);
+
+        return true;
+    }
+
     public async Task<PortfolioDto?> AddFundAsync(Guid userId, Guid portfolioId, AddInvestmentFundDto dto, CancellationToken cancellationToken = default)
     {
         var portfolio = await _context.Portfolios

@@ -1,20 +1,17 @@
-# ALL TASKS COMPLETED ✅
+# Run Project (Frontend + Backend)
 
-## Original Task 1: Dashboard.jsx - Remove "Fon Adı" input
-- [x] Removed fundName input from "Fon Ekle" form
-- [x] Changed grid from `grid-cols-2` to `grid-cols-3`
+- [x] Create launchSettings.json for WebAPI (port 5000)
+- [x] Start backend with `dotnet run`
+- [x] Start frontend with `npm run dev`
+- [x] Verify both are running
 
-## Original Task 2: PortfolioService.cs - Partial sell logic
-- [x] Verified SellFundAsync already has correct partial-sell logic (no change needed)
+# Add Category Tabs + Horizontal Scroll to TrendFonlar
 
-## Task 3: Dashboard.jsx Layout - Move "Fon Çıkart" below "Fon Ekle"
-- [x] Wrapped both "Fon Ekle" and "Fon Çıkart" inside a shared right column container
-- [x] Both forms are stacked vertically inside the same grid column next to the Pie Chart
+- [x] Add 3 category tabs (Güncel Fonlar, En Çok İşlem Gören Fonlar, Global Fonlar) with mock data
+- [x] Make active tab visually distinct
+- [x] Make cards horizontally scrollable with hidden scrollbar
 
-## Task 4: FinanceApiService.cs - Turkish mutual fund price fetching
-- [x] Removed broken Bigpara fallback completely
-- [x] Added TEFAS API fallback with browser-mimicking headers (User-Agent, Accept, X-Requested-With, Referrer, Origin)
-- [x] Added İş Yatırım API as secondary fallback
-- [x] Turkish decimal parsing preserved and safe
-- [x] All HttpClient instances use browser-like User-Agent to bypass WAFs
+# Add Visible Turquoise Horizontal Scrollbar
 
+- [x] Add visible turquoise track + thumb scrollbar below the fund cards
+- [x] Style matches interface turquoise accent color

@@ -52,6 +52,24 @@ public class PortfolioController : ControllerBase
         return CreatedAtAction(nameof(GetPortfolios), new { }, portfolio);
     }
 
+    [HttpDelete("{portfolioId}")]
+    public async Task<IActionResult> DeletePortfolio([FromRoute] Guid portfolioId, CancellationToken cancellationToken)
+    {
+        var userIdValue = User.FindFirstValue(ClaimTypes.NameIdentifier);
+        if (!Guid.TryParse(userIdValue, out var userId))
+        {
+            return Unauthorized();
+        }
+
+        var deleted = await _portfolioService.DeletePortfolioAsync(userId, portfolioId, cancellationToken);
+        if (!deleted)
+        {
+            return NotFound();
+        }
+
+        return NoContent();
+    }
+
     [HttpGet("current-price/{fundCode}")]
     public async Task<IActionResult> GetCurrentPrice([FromRoute] string fundCode, CancellationToken cancellationToken)
     {

@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Net.Http.Headers;
 using System.Text.Json;
+using HtmlAgilityPack;
 using PortfolioPilot.Application.Interfaces;
 using Microsoft.Extensions.Logging;
 
@@ -83,7 +84,26 @@ public class FinanceApiService : IFinanceApiService
             return price;
         }
 
-        // ── Step 4: Try İş Yatırım API as a secondary fallback ──
+        // ── Step 4: Try Yahoo Finance HTML as an open-web fallback ──
+        price = await TryGetPriceFromYahooHtmlAsync(code, cancellationToken);
+        if (price.HasValue)
+        {
+            _logger.LogInformation("Yahoo HTML returned price {Price} for {Code}", price.Value, code);
+            return price;
+        }
+
+        if (!code.EndsWith(".IS", StringComparison.OrdinalIgnoreCase))
+        {
+            var bistSymbol = code + ".IS";
+            price = await TryGetPriceFromYahooHtmlAsync(bistSymbol, cancellationToken);
+            if (price.HasValue)
+            {
+                _logger.LogInformation("Yahoo HTML (.IS) returned price {Price} for {Code}", price.Value, bistSymbol);
+                return price;
+            }
+        }
+
+        // ── Step 5: Try İş Yatırım API as a secondary fallback ──
         price = await TryGetPriceFromIsYatirimAsync(code, cancellationToken);
         if (price.HasValue)
         {
@@ -262,6 +282,57 @@ public class FinanceApiService : IFinanceApiService
     }
 
     /// <summary>
+    /// Scrapes Yahoo Finance HTML for an embedded market price when the JSON endpoint fails.
+    /// </summary>
+    private async Task<decimal?> TryGetPriceFromYahooHtmlAsync(string symbol, CancellationToken cancellationToken)
+    {
+        try
+        {
+            using var request = new HttpRequestMessage(HttpMethod.Get, $"https://finance.yahoo.com/quote/{Uri.EscapeDataString(symbol)}");
+            request.Headers.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36");
+            request.Headers.Accept.ParseAdd("text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
+            request.Headers.AcceptLanguage.ParseAdd("tr-TR,tr;q=0.9,en;q=0.8");
+
+            using var response = await _httpClient.SendAsync(request, cancellationToken);
+            if (!response.IsSuccessStatusCode)
+            {
+                _logger.LogDebug("Yahoo HTML returned {StatusCode} for symbol {Symbol}", response.StatusCode, symbol);
+                return null;
+            }
+
+            var html = await response.Content.ReadAsStringAsync(cancellationToken);
+            if (string.IsNullOrWhiteSpace(html))
+            {
+                return null;
+            }
+
+            var doc = new HtmlDocument();
+            doc.LoadHtml(html);
+
+            foreach (var scriptNode in doc.DocumentNode.SelectNodes("//script") ?? Enumerable.Empty<HtmlNode>())
+            {
+                var scriptText = scriptNode.InnerText;
+                if (TryExtractYahooPriceFromScript(scriptText, out var price))
+                {
+                    return price;
+                }
+            }
+
+            _logger.LogDebug("Yahoo HTML parsed but no price found for symbol {Symbol}", symbol);
+            return null;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (Exception exception)
+        {
+            _logger.LogDebug(exception, "Yahoo HTML fetch failed for symbol {Symbol}", symbol);
+            return null;
+        }
+    }
+
+    /// <summary>
     /// Parses a Turkish-formatted decimal string (e.g. "1.234,567891" or "0,123456") to a decimal.
     /// Removes thousand separators (.) and replaces decimal comma (,) with dot (.).
     /// </summary>
@@ -315,6 +386,40 @@ public class FinanceApiService : IFinanceApiService
                         return true;
                     }
                 }
+            }
+        }
+
+        return false;
+    }
+
+    private static bool TryExtractYahooPriceFromScript(string scriptText, out decimal price)
+    {
+        price = default;
+
+        if (string.IsNullOrWhiteSpace(scriptText))
+        {
+            return false;
+        }
+
+        var patterns = new[]
+        {
+            "\"regularMarketPrice\"\\s*:\\s*\\{\\s*\"raw\"\\s*:\\s*(?<price>-?\\d+(?:\\.\\d+)?)",
+            "\"currentPrice\"\\s*:\\s*\\{\\s*\"raw\"\\s*:\\s*(?<price>-?\\d+(?:\\.\\d+)?)",
+            "\"price\"\\s*:\\s*\\{\\s*\"raw\"\\s*:\\s*(?<price>-?\\d+(?:\\.\\d+)?)",
+        };
+
+        foreach (var pattern in patterns)
+        {
+            var match = System.Text.RegularExpressions.Regex.Match(scriptText, pattern, System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Singleline);
+            if (!match.Success)
+            {
+                continue;
+            }
+
+            var raw = match.Groups["price"].Value;
+            if (decimal.TryParse(raw, NumberStyles.AllowDecimalPoint | NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out price))
+            {
+                return true;
             }
         }
 

@@ -17,3 +17,4 @@ c:\Users\cool\Desktop\PortfolioPilot\src\PortfolioPilot.Infrastructure\obj\Debug
 c:\Users\cool\Desktop\PortfolioPilot\src\PortfolioPilot.Infrastructure\obj\Debug\net8.0\ref\PortfolioPilot.Infrastructure.dll
 c:\Users\cool\Desktop\PortfolioPilot\src\PortfolioPilot.Infrastructure\bin\Debug\net8.0\PortfolioPilot.Application.dll
 c:\Users\cool\Desktop\PortfolioPilot\src\PortfolioPilot.Infrastructure\bin\Debug\net8.0\PortfolioPilot.Application.pdb
+C:\Users\cool\Desktop\PortfolioPilot\src\PortfolioPilot.Infrastructure\obj\Debug\net8.0\PortfolioPilot.Infrastructure.sourcelink.json

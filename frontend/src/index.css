@@ -5,10 +5,12 @@
   line-height: 1.5;
   font-weight: 400;
   color: #e5eef9;
+  color-scheme: dark;
   background:
-    radial-gradient(circle at top, rgba(18, 91, 255, 0.28), transparent 32%),
-    radial-gradient(circle at 20% 20%, rgba(0, 219, 195, 0.2), transparent 22%),
-    linear-gradient(180deg, #07111f 0%, #0a1322 52%, #050913 100%);
+    radial-gradient(circle at top, rgba(56, 189, 248, 0.18), transparent 28%),
+    radial-gradient(circle at 80% 10%, rgba(45, 212, 191, 0.14), transparent 24%),
+    radial-gradient(circle at 20% 70%, rgba(14, 165, 233, 0.12), transparent 26%),
+    linear-gradient(180deg, #050816 0%, #081120 45%, #040710 100%);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -24,8 +26,55 @@ body,
 
 body {
   min-height: 100vh;
+  background:
+    radial-gradient(circle at top, rgba(56, 189, 248, 0.16), transparent 28%),
+    linear-gradient(180deg, rgba(5, 8, 22, 0.98) 0%, rgba(4, 7, 16, 1) 100%);
 }
 
 * {
   box-sizing: border-box;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background-image: linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 72px 72px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.35), transparent 85%);
+  opacity: 0.15;
+}
+
+::selection {
+  background: rgba(45, 212, 191, 0.3);
+  color: #fff;
+}
+
+/* Turkuaz yatay kaydırma çubuğu (trend fon kartları için) */
+.trend-scrollbar {
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: #22d3ee rgba(255, 255, 255, 0.08); /* Firefox: thumb - track */
+  padding-bottom: 0.5rem;
+}
+
+.trend-scrollbar::-webkit-scrollbar {
+  height: 8px;
+}
+
+.trend-scrollbar::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 9999px;
+  margin: 0 0.25rem;
+}
+
+.trend-scrollbar::-webkit-scrollbar-thumb {
+  background: linear-gradient(90deg, #22d3ee, #2dd4bf);
+  border-radius: 9999px;
+  border: 2px solid rgba(5, 8, 22, 0.9);
+}
+
+.trend-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(90deg, #67e8f9, #5eead4);
 }

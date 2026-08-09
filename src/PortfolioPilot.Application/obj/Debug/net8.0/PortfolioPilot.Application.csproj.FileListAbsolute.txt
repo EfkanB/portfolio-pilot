@@ -13,3 +13,4 @@ c:\Users\cool\Desktop\PortfolioPilot\src\PortfolioPilot.Application\obj\Debug\ne
 c:\Users\cool\Desktop\PortfolioPilot\src\PortfolioPilot.Application\obj\Debug\net8.0\refint\PortfolioPilot.Application.dll
 c:\Users\cool\Desktop\PortfolioPilot\src\PortfolioPilot.Application\obj\Debug\net8.0\PortfolioPilot.Application.pdb
 c:\Users\cool\Desktop\PortfolioPilot\src\PortfolioPilot.Application\obj\Debug\net8.0\ref\PortfolioPilot.Application.dll
+C:\Users\cool\Desktop\PortfolioPilot\src\PortfolioPilot.Application\obj\Debug\net8.0\PortfolioPilot.Application.sourcelink.json

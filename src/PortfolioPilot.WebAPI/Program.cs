@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Identity;
+using System.Net;
 using PortfolioPilot.Application.Interfaces;
 using PortfolioPilot.Application.Mappings;
 using PortfolioPilot.Application.Services;
@@ -58,6 +59,22 @@ builder.Services.AddHttpClient<IFinanceApiService, FinanceApiService>(client =>
     client.BaseAddress = new Uri("https://query1.finance.yahoo.com/");
     client.Timeout = TimeSpan.FromSeconds(15);
     client.DefaultRequestHeaders.UserAgent.ParseAdd("PortfolioPilot/1.0");
+});
+builder.Services.AddHttpClient<ITefasFundService, TefasFundService>(client =>
+{
+    client.BaseAddress = new Uri("https://www.tefas.gov.tr/");
+    client.Timeout = TimeSpan.FromSeconds(20);
+    client.DefaultRequestHeaders.UserAgent.ParseAdd("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36");
+    client.DefaultRequestHeaders.Accept.ParseAdd("application/json, text/javascript, */*; q=0.01");
+    client.DefaultRequestHeaders.AcceptLanguage.ParseAdd("tr-TR,tr;q=0.9,en;q=0.8");
+    client.DefaultRequestHeaders.Referrer = new Uri("https://www.tefas.gov.tr/tr/");
+    client.DefaultRequestHeaders.Add("Origin", "https://www.tefas.gov.tr");
+    client.DefaultRequestHeaders.Add("X-Requested-With", "XMLHttpRequest");
+}).ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler
+{
+    UseCookies = true,
+    CookieContainer = new CookieContainer(),
+    AutomaticDecompression = System.Net.DecompressionMethods.GZip | System.Net.DecompressionMethods.Deflate,
 });
 
 builder.Services.AddDbContext<ApplicationDbContext>(options =>

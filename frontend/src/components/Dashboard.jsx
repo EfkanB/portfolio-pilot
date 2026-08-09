@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import * as signalR from '@microsoft/signalr'
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 import api from '../services/api'
+import TrendFonlar from './TrendFonlar'
 
 const COLORS = [
   '#06b6d4', '#8b5cf6', '#f59e0b', '#10b981',
@@ -15,6 +16,10 @@ function formatCurrency(value) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2,
   }).format(value)
+}
+
+function formatQuantity(value) {
+  return Number.isFinite(value) ? Math.trunc(value).toString() : '0'
 }
 
 function extractFunds(portfolio) {
@@ -33,7 +38,7 @@ function extractDescription(entity) {
   return entity?.description ?? entity?.Description
 }
 
-export default function Dashboard() {
+export default function Dashboard() { 
   const navigate = useNavigate()
   const [portfolios, setPortfolios] = useState([])
   const [selectedPortfolioId, setSelectedPortfolioId] = useState(null)
@@ -54,6 +59,7 @@ export default function Dashboard() {
 
   // Delete fund
   const [deletingFundId, setDeletingFundId] = useState(null)
+  const [deletingPortfolioId, setDeletingPortfolioId] = useState(null)
 
   // Sell fund
   const [sellForm, setSellForm] = useState({ fundCode: '', quantity: '' })
@@ -139,24 +145,91 @@ export default function Dashboard() {
     }
   }
 
-  // ─── Fund Price Fetch (onBlur) ────────────────────────────────────────
-  const handleFundCodeBlur = async () => {
-    const code = fundForm.fundCode.trim()
-    if (!code) return
+  const handleDeletePortfolio = async (portfolioId) => {
+    if (!portfolioId) return
+
+    const targetPortfolio = portfolios.find((p) => extractId(p) === portfolioId)
+    const portfolioName = extractName(targetPortfolio) || 'bu portföy'
+
+    const confirmed = window.confirm(
+      `${portfolioName} silinsin mi? Bu işlem portföydeki tüm fonları da kalıcı olarak siler.`,
+    )
+
+    if (!confirmed) return
 
     try {
-      setFetchingPrice(true)
-      const response = await api.get(`/api/Portfolio/current-price/${encodeURIComponent(code)}`)
-      const price = response.data?.currentPrice ?? response.data?.CurrentPrice
-      if (price !== undefined && price !== null) {
-        setFundForm((prev) => ({ ...prev, currentPrice: String(price) }))
-      }
+      setDeletingPortfolioId(portfolioId)
+      setError('')
+
+      await api.delete(`/api/Portfolio/${portfolioId}`)
+
+      setPortfolios((prev) => prev.filter((p) => extractId(p) !== portfolioId))
+      setSelectedPortfolioId((current) => {
+        if (current !== portfolioId) return current
+        const remaining = portfolios.filter((p) => extractId(p) !== portfolioId)
+        return remaining.length > 0 ? extractId(remaining[0]) : null
+      })
+      setFunds([])
     } catch {
-      // Silently fail — price field stays as-is
+      setError('Portföy silinemedi.')
     } finally {
-      setFetchingPrice(false)
+      setDeletingPortfolioId(null)
     }
   }
+
+  // ─── Fund Price Fetch (auto) ──────────────────────────────────────────
+  const fetchFundPrice = useCallback(async (fundCode, signal) => {
+    const code = fundCode.trim().toUpperCase()
+    if (!code) return
+
+    setFetchingPrice(true)
+
+    try {
+      const tefasResponse = await api.get(`/api/Tefas/quote/${encodeURIComponent(code)}`, { signal })
+      const tefasPrice = tefasResponse.data?.currentPrice ?? tefasResponse.data?.CurrentPrice
+
+      if (tefasPrice !== undefined && tefasPrice !== null) {
+        setFundForm((prev) => ({ ...prev, currentPrice: String(tefasPrice) }))
+        return
+      }
+    } catch (error) {
+      if (signal?.aborted) return
+    }
+
+    try {
+      const fallbackResponse = await api.get(`/api/Portfolio/current-price/${encodeURIComponent(code)}`, { signal })
+      const fallbackPrice = fallbackResponse.data?.currentPrice ?? fallbackResponse.data?.CurrentPrice
+
+      if (fallbackPrice !== undefined && fallbackPrice !== null) {
+        setFundForm((prev) => ({ ...prev, currentPrice: String(fallbackPrice) }))
+      }
+    } catch (error) {
+      if (signal?.aborted) return
+    } finally {
+      if (!signal?.aborted) {
+        setFetchingPrice(false)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    const code = fundForm.fundCode.trim()
+    if (!code) {
+      setFundForm((prev) => (prev.currentPrice ? { ...prev, currentPrice: '' } : prev))
+      setFetchingPrice(false)
+      return undefined
+    }
+
+    const controller = new AbortController()
+    const timeoutId = window.setTimeout(() => {
+      fetchFundPrice(code, controller.signal)
+    }, 450)
+
+    return () => {
+      controller.abort()
+      window.clearTimeout(timeoutId)
+    }
+  }, [fetchFundPrice, fundForm.fundCode])
 
   // ─── Add Fund ─────────────────────────────────────────────────────────
   const handleFundFormChange = (e) => {
@@ -203,6 +276,12 @@ export default function Dashboard() {
   // ─── Delete Fund ──────────────────────────────────────────────────────
   const handleDeleteFund = async (fundId) => {
     if (!selectedPortfolio || !fundId) return
+
+    const targetFund = funds.find((fund) => (fund.id ?? fund.Id) === fundId)
+    const fundLabel = `${targetFund?.fundCode ?? targetFund?.FundCode ?? 'Fon'}${targetFund?.fundName || targetFund?.FundName ? ` - ${targetFund.fundName ?? targetFund.FundName}` : ''}`
+    const confirmed = window.confirm(`${fundLabel} silinsin mi? Bu işlem geri alınamaz.`)
+
+    if (!confirmed) return
 
     try {
       setDeletingFundId(fundId)
@@ -347,18 +426,21 @@ export default function Dashboard() {
 
   // ─── Render ──────────────────────────────────────────────────────────
   return (
-    <main className="min-h-screen bg-gray-950 px-4 py-6 text-gray-100">
+    <main className="min-h-screen px-4 py-6 text-gray-100">
       <div className="mx-auto max-w-7xl space-y-6">
         {/* ── Header ─────────────────────────────────────────────────── */}
-        <header className="rounded-2xl border border-gray-800 bg-gray-900/80 p-5 shadow-xl shadow-black/30 backdrop-blur">
+        <header className="rounded-[1.75rem] border border-cyan-400/10 bg-slate-950/75 p-5 shadow-[0_25px_80px_rgba(2,8,23,0.55)] backdrop-blur-xl">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
-              <p className="text-xs uppercase tracking-[0.35em] text-cyan-400/80">PortfolioPilot</p>
-              <h1 className="mt-1 text-2xl font-bold tracking-tight text-white md:text-4xl">Dashboard</h1>
+              <p className="text-xs uppercase tracking-[0.35em] text-cyan-300/80">PortfolioPilot</p>
+              <h1 className="mt-1 text-2xl font-semibold tracking-tight text-white md:text-4xl">Finans Kontrol Merkezi</h1>
+              <p className="mt-2 max-w-2xl text-sm text-slate-400">
+                Portföyünü yönet, TEFAS fonlarını izle ve anlık fiyatları tek ekranda takip et.
+              </p>
             </div>
 
             <div className="flex items-center gap-3">
-              <div className="rounded-xl border border-gray-700/50 bg-gray-800/60 px-3 py-2 text-right">
+              <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-right shadow-lg shadow-black/10">
                 <div className="text-[10px] uppercase tracking-[0.3em] text-gray-400">Hub</div>
                 <div className="mt-0.5 text-xs font-medium text-gray-200">{connectionStatus}</div>
               </div>
@@ -366,7 +448,7 @@ export default function Dashboard() {
               <button
                 type="button"
                 onClick={handleLogout}
-                className="rounded-xl border border-gray-700/50 bg-gray-800/60 px-4 py-2 text-sm font-medium text-gray-200 transition hover:bg-gray-700/60 hover:text-white"
+                className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm font-medium text-slate-200 transition hover:border-cyan-300/30 hover:bg-cyan-300/10 hover:text-white"
               >
                 Çıkış Yap
               </button>
@@ -376,14 +458,16 @@ export default function Dashboard() {
 
         {/* ── Error ──────────────────────────────────────────────────── */}
         {error && (
-          <div className="rounded-xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-300">
+          <div className="rounded-2xl border border-rose-500/30 bg-rose-500/10 px-4 py-3 text-sm text-rose-200 shadow-lg shadow-rose-950/20">
             {error}
           </div>
         )}
 
+        <TrendFonlar />
+
         {/* ── Portfolio Tabs ─────────────────────────────────────────── */}
         {!loading && (
-          <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-gray-800 bg-gray-900/60 p-3 backdrop-blur">
+          <div className="flex flex-wrap items-center gap-2 rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-3 shadow-[0_18px_60px_rgba(2,8,23,0.35)] backdrop-blur-xl">
             {portfolios.map((p) => {
               const pid = extractId(p)
               const isActive = pid === selectedPortfolioId
@@ -392,10 +476,10 @@ export default function Dashboard() {
                   key={pid}
                   type="button"
                   onClick={() => setSelectedPortfolioId(pid)}
-                  className={`rounded-xl px-4 py-2 text-sm font-medium transition ${
+                  className={`rounded-2xl px-4 py-2 text-sm font-medium transition ${
                     isActive
-                      ? 'bg-cyan-500/20 text-cyan-300 ring-1 ring-cyan-500/40'
-                      : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700/50 hover:text-gray-200'
+                      ? 'bg-cyan-300/15 text-cyan-200 ring-1 ring-cyan-300/25 shadow-lg shadow-cyan-950/20'
+                      : 'bg-white/5 text-slate-400 hover:bg-white/10 hover:text-slate-100'
                   }`}
                 >
                   {extractName(p)}
@@ -406,7 +490,7 @@ export default function Dashboard() {
             <button
               type="button"
               onClick={() => setShowCreateModal(true)}
-              className="ml-auto rounded-xl bg-cyan-500 px-4 py-2 text-sm font-medium text-gray-950 transition hover:bg-cyan-400"
+              className="ml-auto rounded-2xl bg-gradient-to-r from-cyan-300 to-teal-300 px-4 py-2 text-sm font-semibold text-slate-950 shadow-lg shadow-cyan-950/20 transition hover:brightness-110"
             >
               + Yeni Portföy
             </button>
@@ -415,7 +499,7 @@ export default function Dashboard() {
 
         {/* ── Empty State ────────────────────────────────────────────── */}
         {!loading && portfolios.length === 0 && (
-          <div className="rounded-2xl border border-dashed border-gray-700 bg-gray-900/40 p-10 text-center">
+          <div className="rounded-[1.75rem] border border-dashed border-white/10 bg-slate-950/55 p-10 text-center shadow-[0_18px_60px_rgba(2,8,23,0.28)]">
             <h2 className="text-xl font-semibold text-white">İlk Portföyünü Oluştur</h2>
             <p className="mt-2 text-sm text-gray-400">
               Henüz portföy bulunmuyor. Aşağıdaki formu doldurarak başlayabilirsin.
@@ -426,7 +510,7 @@ export default function Dashboard() {
                 value={portfolioForm.name}
                 onChange={handlePortfolioFormChange}
                 placeholder="Portföy Adı"
-                className="flex-1 rounded-xl border border-gray-700 bg-gray-800/80 px-4 py-2.5 text-sm text-gray-100 outline-none transition placeholder:text-gray-500 focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/20"
+                className="flex-1 rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-gray-100 outline-none transition placeholder:text-gray-500 focus:border-cyan-300/40 focus:ring-1 focus:ring-cyan-300/20"
                 required
               />
               <input
@@ -434,12 +518,12 @@ export default function Dashboard() {
                 value={portfolioForm.description}
                 onChange={handlePortfolioFormChange}
                 placeholder="Açıklama (isteğe bağlı)"
-                className="flex-1 rounded-xl border border-gray-700 bg-gray-800/80 px-4 py-2.5 text-sm text-gray-100 outline-none transition placeholder:text-gray-500 focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/20"
+                className="flex-1 rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-gray-100 outline-none transition placeholder:text-gray-500 focus:border-cyan-300/40 focus:ring-1 focus:ring-cyan-300/20"
               />
               <button
                 type="submit"
                 disabled={creatingPortfolio}
-                className="rounded-xl bg-cyan-500 px-5 py-2.5 text-sm font-medium text-gray-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
+                className="rounded-2xl bg-gradient-to-r from-cyan-300 to-teal-300 px-5 py-2.5 text-sm font-semibold text-slate-950 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
               >
                 {creatingPortfolio ? 'Oluşturuluyor...' : 'Oluştur'}
               </button>
@@ -449,8 +533,8 @@ export default function Dashboard() {
 
         {/* ── Loading State ──────────────────────────────────────────── */}
         {loading && (
-          <div className="rounded-2xl border border-gray-800 bg-gray-900/40 p-10 text-center">
-            <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-cyan-500 border-t-transparent" />
+          <div className="rounded-[1.75rem] border border-white/10 bg-slate-950/55 p-10 text-center shadow-[0_18px_60px_rgba(2,8,23,0.28)]">
+            <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-cyan-300 border-t-transparent" />
             <p className="mt-3 text-sm text-gray-400">Portföyler yükleniyor...</p>
           </div>
         )}
@@ -458,28 +542,49 @@ export default function Dashboard() {
         {/* ── Main Content (Portfolio Selected) ──────────────────────── */}
         {!loading && selectedPortfolio && (
           <>
+            <div className="flex flex-col gap-4 rounded-[1.75rem] border border-white/10 bg-gradient-to-br from-slate-950/90 via-slate-900/80 to-slate-950/75 p-5 shadow-[0_24px_80px_rgba(2,8,23,0.42)] backdrop-blur-xl lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <p className="text-xs uppercase tracking-[0.3em] text-cyan-300/70">Seçili Portföy</p>
+                <h2 className="mt-1 text-2xl font-semibold text-white">{extractName(selectedPortfolio)}</h2>
+                <p className="mt-1 text-sm text-slate-400">{extractDescription(selectedPortfolio) || 'Açıklama yok'}</p>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-right">
+                  <div className="text-[10px] uppercase tracking-[0.3em] text-slate-500">Toplam Değer</div>
+                  <div className="mt-1 text-lg font-semibold text-cyan-200">₺{formatCurrency(totalValue)}</div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleDeletePortfolio(selectedPortfolioId)}
+                  disabled={deletingPortfolioId === selectedPortfolioId}
+                  className="rounded-2xl border border-rose-500/25 bg-rose-500/10 px-4 py-3 text-sm font-medium text-rose-200 transition hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {deletingPortfolioId === selectedPortfolioId ? 'Siliniyor...' : 'Portföyü Sil'}
+                </button>
+              </div>
+            </div>
+
             {/* Portfolio Info Cards */}
             <div className="grid gap-3 sm:grid-cols-3">
-              <div className="rounded-xl border border-gray-800 bg-gray-900/60 p-4">
+              <div className="rounded-[1.35rem] border border-white/10 bg-white/5 p-4 shadow-lg shadow-black/10">
                 <div className="text-[10px] uppercase tracking-[0.25em] text-gray-400">Portföy Adı</div>
                 <div className="mt-1.5 text-base font-semibold text-white">{extractName(selectedPortfolio)}</div>
               </div>
-              <div className="rounded-xl border border-gray-800 bg-gray-900/60 p-4">
+              <div className="rounded-[1.35rem] border border-white/10 bg-white/5 p-4 shadow-lg shadow-black/10">
                 <div className="text-[10px] uppercase tracking-[0.25em] text-gray-400">Açıklama</div>
                 <div className="mt-1.5 text-sm text-gray-300">{extractDescription(selectedPortfolio) || '-'}</div>
               </div>
-              <div className="rounded-xl border border-gray-800 bg-gray-900/60 p-4">
-                <div className="text-[10px] uppercase tracking-[0.25em] text-gray-400">Toplam Değer</div>
-                <div className="mt-1.5 text-base font-semibold text-cyan-300">
-                  ₺{formatCurrency(totalValue)}
-                </div>
+              <div className="rounded-[1.35rem] border border-white/10 bg-white/5 p-4 shadow-lg shadow-black/10">
+                <div className="text-[10px] uppercase tracking-[0.25em] text-gray-400">Fon Sayısı</div>
+                <div className="mt-1.5 text-base font-semibold text-cyan-300">{funds.length}</div>
               </div>
             </div>
 
             {/* ── Pie Chart + Fund Form Row ────────────────────────────── */}
             <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
               {/* Pie Chart */}
-              <div className="rounded-2xl border border-gray-800 bg-gray-900/60 p-5 backdrop-blur">
+              <div className="rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-5 shadow-[0_20px_60px_rgba(2,8,23,0.32)] backdrop-blur-xl">
                 <h2 className="text-base font-semibold text-white">Fon Dağılımı</h2>
                 <p className="mt-0.5 text-xs text-gray-400">Toplam değere göre dağılım (quantity × currentPrice)</p>
 
@@ -503,8 +608,8 @@ export default function Dashboard() {
                         </Pie>
                         <Tooltip
                           contentStyle={{
-                            backgroundColor: '#1f2937',
-                            border: '1px solid #374151',
+                            backgroundColor: '#08111f',
+                            border: '1px solid rgba(148, 163, 184, 0.18)',
                             borderRadius: '0.75rem',
                             color: '#f3f4f6',
                             fontSize: '0.875rem',
@@ -523,7 +628,7 @@ export default function Dashboard() {
                     {/* Quick summary list */}
                     <div className="mt-4 grid gap-1.5 text-sm">
                       {pieData.map((entry, i) => (
-                        <div key={i} className="flex items-center justify-between rounded-lg bg-gray-800/40 px-3 py-1.5">
+                          <div key={i} className="flex items-center justify-between rounded-xl border border-white/5 bg-white/5 px-3 py-2">
                           <div className="flex items-center gap-2">
                             <span
                               className="inline-block h-2.5 w-2.5 rounded-full"
@@ -542,7 +647,7 @@ export default function Dashboard() {
                     </div>
                   </div>
                 ) : (
-                  <div className="mt-8 flex items-center justify-center rounded-xl border border-dashed border-gray-700 bg-gray-800/30 p-8 text-sm text-gray-500">
+                  <div className="mt-8 flex items-center justify-center rounded-2xl border border-dashed border-white/10 bg-white/5 p-8 text-sm text-gray-500">
                     Fon eklediğinizde grafik burada görünecek.
                   </div>
                 )}
@@ -551,10 +656,10 @@ export default function Dashboard() {
               {/* Right Column: Add Fund + Sell Fund */}
               <div className="flex flex-col gap-6">
                 {/* Add Fund Form */}
-                <div className="rounded-2xl border border-gray-800 bg-gray-900/60 p-5 backdrop-blur">
+                <div className="rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-5 shadow-[0_20px_60px_rgba(2,8,23,0.32)] backdrop-blur-xl">
                   <div className="flex items-center justify-between">
                     <h2 className="text-base font-semibold text-white">Fon Ekle</h2>
-                    <span className="rounded-lg bg-gray-800 px-2.5 py-1 text-[10px] uppercase tracking-wider text-gray-400">
+                    <span className="rounded-lg bg-white/5 px-2.5 py-1 text-[10px] uppercase tracking-wider text-gray-400">
                       {extractName(selectedPortfolio)}
                     </span>
                   </div>
@@ -568,9 +673,7 @@ export default function Dashboard() {
                           name="fundCode"
                           value={fundForm.fundCode}
                           onChange={handleFundFormChange}
-                          onBlur={handleFundCodeBlur}
-                          placeholder="Örn: AEG"
-                          className="w-full rounded-xl border border-gray-700 bg-gray-800/80 px-3.5 py-2.5 text-sm text-gray-100 outline-none transition placeholder:text-gray-500 focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/20"
+                          className="w-full rounded-2xl border border-white/10 bg-white/5 px-3.5 py-2.5 text-sm text-gray-100 outline-none transition placeholder:text-gray-500 focus:border-cyan-300/40 focus:ring-1 focus:ring-cyan-300/20"
                           required
                         />
                       </div>
@@ -585,8 +688,7 @@ export default function Dashboard() {
                           min="0.0001"
                           value={fundForm.quantity}
                           onChange={handleFundFormChange}
-                          placeholder="0.00"
-                          className="w-full rounded-xl border border-gray-700 bg-gray-800/80 px-3.5 py-2.5 text-sm text-gray-100 outline-none transition placeholder:text-gray-500 focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/20"
+                          className="w-full rounded-2xl border border-white/10 bg-white/5 px-3.5 py-2.5 text-sm text-gray-100 outline-none transition placeholder:text-gray-500 focus:border-cyan-300/40 focus:ring-1 focus:ring-cyan-300/20"
                           required
                         />
                       </div>
@@ -610,8 +712,7 @@ export default function Dashboard() {
                           const sanitized = value.replace(',', '.')
                           setFundForm((prev) => ({ ...prev, [name]: sanitized }))
                         }}
-                        placeholder="0.00"
-                        className="w-full rounded-xl border border-gray-700 bg-gray-800/80 px-3.5 py-2.5 text-sm text-gray-100 outline-none transition placeholder:text-gray-500 focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/20"
+                        className="w-full rounded-2xl border border-white/10 bg-white/5 px-3.5 py-2.5 text-sm text-gray-100 outline-none transition placeholder:text-gray-500 focus:border-cyan-300/40 focus:ring-1 focus:ring-cyan-300/20"
                         required
                       />
                     </div>
@@ -620,23 +721,20 @@ export default function Dashboard() {
                     <button
                       type="submit"
                       disabled={addingFund}
-                      className="mt-2 w-full rounded-xl bg-cyan-500 py-2.5 text-sm font-medium text-gray-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
+                      className="mt-2 w-full rounded-2xl bg-gradient-to-r from-cyan-300 to-teal-300 py-2.5 text-sm font-semibold text-slate-950 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {addingFund ? 'Ekleniyor...' : 'Fon Ekle'}
                     </button>
                   </form>
 
-                  <div className="mt-3 rounded-xl border border-gray-700/50 bg-gray-800/40 p-3 text-[11px] leading-relaxed text-gray-400">
-                    💡 <span className="text-gray-300">Fon Kodu</span> alanına kodu yazıp çıktığınızda fiyat otomatik çekilir.
-                  </div>
                 </div>
 
                 {/* Sell Fund Form */}
                 {funds.length > 0 && (
-                  <div className="rounded-2xl border border-gray-800 bg-gray-900/60 p-5 backdrop-blur">
+                  <div className="rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-5 shadow-[0_20px_60px_rgba(2,8,23,0.32)] backdrop-blur-xl">
                     <div className="flex items-center justify-between">
                       <h2 className="text-base font-semibold text-white">Fon Çıkart</h2>
-                      <span className="rounded-lg bg-gray-800 px-2.5 py-1 text-[10px] uppercase tracking-wider text-gray-400">
+                      <span className="rounded-lg bg-white/5 px-2.5 py-1 text-[10px] uppercase tracking-wider text-gray-400">
                         {extractName(selectedPortfolio)}
                       </span>
                     </div>
@@ -650,7 +748,7 @@ export default function Dashboard() {
                             name="fundCode"
                             value={sellForm.fundCode}
                             onChange={handleSellFormChange}
-                            className="w-full rounded-xl border border-gray-700 bg-gray-800/80 px-3.5 py-2.5 text-sm text-gray-100 outline-none transition focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/20"
+                            className="w-full rounded-2xl border border-white/10 bg-white/5 px-3.5 py-2.5 text-sm text-slate-300 outline-none transition focus:border-cyan-300/40 focus:ring-1 focus:ring-cyan-300/20"
                             required
                           >
                             <option value="" disabled>-- Fon Seçin --</option>
@@ -660,7 +758,7 @@ export default function Dashboard() {
                               const qty = Number(fund.quantity ?? fund.Quantity ?? 0)
                               return (
                                 <option key={code} value={code}>
-                                  {code} - {name} (Mevcut: {qty.toFixed(4)})
+                                  {code} - {name} (Mevcut: {formatQuantity(qty)})
                                 </option>
                               )
                             })}
@@ -678,7 +776,7 @@ export default function Dashboard() {
                             value={sellForm.quantity}
                             onChange={handleSellFormChange}
                             placeholder="0.00"
-                            className="w-full rounded-xl border border-gray-700 bg-gray-800/80 px-3.5 py-2.5 text-sm text-gray-100 outline-none transition placeholder:text-gray-500 focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/20"
+                            className="w-full rounded-2xl border border-white/10 bg-white/5 px-3.5 py-2.5 text-sm text-gray-100 outline-none transition placeholder:text-gray-500 focus:border-cyan-300/40 focus:ring-1 focus:ring-cyan-300/20"
                             required
                           />
                         </div>
@@ -687,7 +785,7 @@ export default function Dashboard() {
                       <button
                         type="submit"
                         disabled={sellingFund}
-                        className="mt-2 w-full rounded-xl bg-amber-500 py-2.5 text-sm font-medium text-gray-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-60"
+                        className="mt-2 w-full rounded-2xl bg-gradient-to-r from-amber-300 to-orange-300 py-2.5 text-sm font-semibold text-slate-950 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
                       >
                         {sellingFund ? 'Satılıyor...' : 'Fon Çıkart'}
                       </button>
@@ -698,7 +796,7 @@ export default function Dashboard() {
             </div>
 
             {/* ── Fund Table ──────────────────────────────────────────── */}
-            <div className="rounded-2xl border border-gray-800 bg-gray-900/60 p-5 backdrop-blur">
+            <div className="rounded-[1.5rem] border border-white/10 bg-slate-950/70 p-5 shadow-[0_20px_60px_rgba(2,8,23,0.32)] backdrop-blur-xl">
               <h2 className="text-base font-semibold text-white">Fon Listesi</h2>
               <p className="mt-0.5 text-xs text-gray-400">
                 Kar / Zarar = (Güncel Fiyat − Ortalama Maliyet) × Adet
@@ -707,17 +805,16 @@ export default function Dashboard() {
               <div className="mt-4 overflow-x-auto">
                 <table className="min-w-full text-left text-sm">
                   <thead>
-                    <tr className="border-b border-gray-800 text-[11px] uppercase tracking-wider text-gray-400">
+                    <tr className="border-b border-white/10 text-[11px] uppercase tracking-wider text-gray-400">
                       <th className="px-3 py-3 font-medium">Kod</th>
                       <th className="px-3 py-3 font-medium">Ad</th>
                       <th className="px-3 py-3 font-medium text-right">Adet</th>
                       <th className="px-3 py-3 font-medium text-right">Ort. Maliyet</th>
                       <th className="px-3 py-3 font-medium text-right">Güncel Fiyat</th>
                       <th className="px-3 py-3 font-medium text-right">Kar / Zarar</th>
-                      <th className="px-3 py-3 font-medium text-center">İşlem</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-800/60">
+                  <tbody className="divide-y divide-white/5">
                     {funds.length > 0 ? (
                       funds.map((fund) => {
                         const id = fund.id ?? fund.Id
@@ -730,11 +827,11 @@ export default function Dashboard() {
                         const isPositive = profitLoss >= 0
 
                         return (
-                          <tr key={id ?? fundCode} className="transition hover:bg-gray-800/30">
-                            <td className="px-3 py-3 font-medium text-cyan-300">{fundCode}</td>
+                          <tr key={id ?? fundCode} className="transition hover:bg-white/5">
+                            <td className="px-3 py-3 font-medium text-slate-400">{fundCode}</td>
                             <td className="px-3 py-3 text-gray-300">{fundName}</td>
                             <td className="px-3 py-3 text-right tabular-nums text-gray-200">
-                              {quantity.toFixed(4)}
+                              {formatQuantity(quantity)}
                             </td>
                             <td className="px-3 py-3 text-right tabular-nums text-gray-200">
                               ₺{formatCurrency(averageCost)}
@@ -749,22 +846,12 @@ export default function Dashboard() {
                             >
                               {isPositive ? '+' : ''}₺{formatCurrency(profitLoss)}
                             </td>
-                            <td className="px-3 py-3 text-center">
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteFund(id)}
-                                disabled={deletingFundId === id}
-                                className="rounded-lg border border-rose-500/30 bg-rose-500/10 px-2.5 py-1 text-xs font-medium text-rose-300 transition hover:bg-rose-500/20 disabled:cursor-not-allowed disabled:opacity-50"
-                              >
-                                {deletingFundId === id ? 'Siliniyor...' : 'Sil'}
-                              </button>
-                            </td>
                           </tr>
                         )
                       })
                     ) : (
                       <tr>
-                        <td colSpan={7} className="px-3 py-8 text-center text-sm text-gray-500">
+                        <td colSpan={6} className="px-3 py-8 text-center text-sm text-gray-500">
                           Henüz fon bulunmuyor. Yukarıdaki formu kullanarak fon ekleyebilirsiniz.
                         </td>
                       </tr>
@@ -780,7 +867,7 @@ export default function Dashboard() {
       {/* ── Create Portfolio Modal ──────────────────────────────────── */}
       {showCreateModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
-          <div className="mx-4 w-full max-w-md rounded-2xl border border-gray-800 bg-gray-900 p-6 shadow-2xl">
+          <div className="mx-4 w-full max-w-md rounded-[1.75rem] border border-white/10 bg-slate-950 p-6 shadow-[0_24px_90px_rgba(2,8,23,0.65)]">
             <h2 className="text-lg font-semibold text-white">Yeni Portföy Oluştur</h2>
             <p className="mt-1 text-sm text-gray-400">Portföy adı ve açıklama girerek yeni bir portföy oluşturun.</p>
 
@@ -795,7 +882,7 @@ export default function Dashboard() {
                   value={portfolioForm.name}
                   onChange={handlePortfolioFormChange}
                   placeholder="Örn: BES Portföyüm"
-                  className="w-full rounded-xl border border-gray-700 bg-gray-800/80 px-4 py-2.5 text-sm text-gray-100 outline-none transition placeholder:text-gray-500 focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/20"
+                  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-gray-100 outline-none transition placeholder:text-gray-500 focus:border-cyan-300/40 focus:ring-1 focus:ring-cyan-300/20"
                   required
                 />
               </div>
@@ -810,7 +897,7 @@ export default function Dashboard() {
                   value={portfolioForm.description}
                   onChange={handlePortfolioFormChange}
                   placeholder="Kısa bir açıklama..."
-                  className="w-full rounded-xl border border-gray-700 bg-gray-800/80 px-4 py-2.5 text-sm text-gray-100 outline-none transition placeholder:text-gray-500 focus:border-cyan-500/50 focus:ring-1 focus:ring-cyan-500/20"
+                  className="w-full rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-gray-100 outline-none transition placeholder:text-gray-500 focus:border-cyan-300/40 focus:ring-1 focus:ring-cyan-300/20"
                 />
               </div>
 
@@ -821,14 +908,14 @@ export default function Dashboard() {
                     setShowCreateModal(false)
                     setPortfolioForm({ name: '', description: '' })
                   }}
-                  className="rounded-xl border border-gray-700 bg-gray-800 px-4 py-2 text-sm font-medium text-gray-300 transition hover:bg-gray-700"
+                  className="rounded-2xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-medium text-gray-300 transition hover:bg-white/10"
                 >
                   İptal
                 </button>
                 <button
                   type="submit"
                   disabled={creatingPortfolio}
-                  className="rounded-xl bg-cyan-500 px-5 py-2 text-sm font-medium text-gray-950 transition hover:bg-cyan-400 disabled:cursor-not-allowed disabled:opacity-60"
+                  className="rounded-2xl bg-gradient-to-r from-cyan-300 to-teal-300 px-5 py-2 text-sm font-semibold text-slate-950 transition hover:brightness-110 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {creatingPortfolio ? 'Oluşturuluyor...' : 'Oluştur'}
                 </button>
