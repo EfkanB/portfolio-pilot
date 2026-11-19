@@ -51,6 +51,7 @@ builder.Services.AddSwaggerGen(options =>
 builder.Services.AddAutoMapper(typeof(MappingProfile).Assembly);
 builder.Services.AddFluentValidationAutoValidation();
 builder.Services.AddValidatorsFromAssemblyContaining<AddInvestmentFundDtoValidator>();
+builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<IAuthService, AuthService>();
 builder.Services.AddScoped<IPortfolioService, PortfolioService>();
 builder.Services.AddScoped<ICacheService, RedisCacheService>();
@@ -89,11 +90,14 @@ builder.Services.AddStackExchangeRedisCache(options =>
 
 builder.Services.AddSignalR();
 builder.Services.AddHostedService<FundPriceWorker>();
+var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>()
+    ?? ["http://localhost:5173"];
+
 builder.Services.AddCors(options =>
 {
     options.AddPolicy("FrontendCors", policy =>
     {
-        policy.WithOrigins("http://localhost:5173")
+        policy.WithOrigins(allowedOrigins)
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials();
@@ -114,7 +118,14 @@ builder.Services.AddIdentityCore<User>(options =>
     .AddSignInManager();
 
 var jwtSection = builder.Configuration.GetSection("Jwt");
-var jwtKey = jwtSection["Key"] ?? throw new InvalidOperationException("JWT key is missing.");
+var jwtKey = jwtSection["Key"];
+if (string.IsNullOrWhiteSpace(jwtKey) || Encoding.UTF8.GetByteCount(jwtKey) < 32)
+{
+    throw new InvalidOperationException(
+        "Jwt:Key yapılandırılmamış ya da 32 byte'tan kısa. Geliştirme için: " +
+        "dotnet user-secrets set \"Jwt:Key\" \"<en-az-32-karakterlik-rastgele-anahtar>\" " +
+        "(src/PortfolioPilot.WebAPI klasöründe). Üretimde Jwt__Key ortam değişkenini kullanın.");
+}
 
 builder.Services.AddAuthentication(options =>
 {
@@ -132,6 +143,22 @@ builder.Services.AddAuthentication(options =>
         ValidIssuer = jwtSection["Issuer"],
         ValidAudience = jwtSection["Audience"],
         IssuerSigningKey = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(jwtKey))
+    };
+
+    // Browsers cannot set the Authorization header on WebSocket/SSE requests,
+    // so SignalR sends the token as ?access_token=... — accept it for the hub only.
+    options.Events = new JwtBearerEvents
+    {
+        OnMessageReceived = context =>
+        {
+            var accessToken = context.Request.Query["access_token"];
+            if (!string.IsNullOrEmpty(accessToken) && context.HttpContext.Request.Path.StartsWithSegments("/portfolioHub"))
+            {
+                context.Token = accessToken;
+            }
+
+            return Task.CompletedTask;
+        }
     };
 });
 

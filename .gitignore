@@ -1,0 +1,23 @@
+# .NET build output
+bin/
+obj/
+*.user
+*.suo
+.vs/
+TestResults/
+
+# Local-only configuration (secrets live in dotnet user-secrets)
+appsettings.Development.json
+appsettings.*.local.json
+
+# Node / frontend
+node_modules/
+dist/
+
+# Editors / OS
+.vscode/*
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+*.log

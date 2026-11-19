@@ -9,14 +9,16 @@ public class AddInvestmentFundDtoValidator : AbstractValidator<AddInvestmentFund
     {
         RuleFor(x => x.FundCode)
             .NotEmpty()
-            .WithMessage("FundCode boş olamaz.");
+            .WithMessage("FundCode boş olamaz.")
+            .MaximumLength(50)
+            .WithMessage("FundCode en fazla 50 karakter olabilir.");
 
         RuleFor(x => x.Quantity)
             .GreaterThan(0)
             .WithMessage("Quantity 0'dan büyük olmalı.");
 
         RuleFor(x => x.CurrentPrice)
-            .GreaterThanOrEqualTo(0)
-            .WithMessage("CurrentPrice negatif olamaz.");
+            .GreaterThan(0)
+            .WithMessage("CurrentPrice 0'dan büyük olmalı.");
     }
 }

@@ -1,16 +1,55 @@
 @import "tailwindcss";
 
+/*
+ * Design tokens. Near-black base (user asked for "black, more colour, richer").
+ * Colour is used generously but with roles:
+ *   violet  = brand / primary actions      cyan  = foreign & tech funds
+ *   amber   = gold & commodities           pink  = debt & money market
+ *   green / red = gain / loss only (never decoration).
+ */
+@theme {
+  --font-sans: "IBM Plex Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+  --color-paper: oklch(0.13 0.006 285);
+  --color-surface: oklch(0.175 0.009 285);
+  --color-sunken: oklch(0.215 0.011 285);
+  --color-line: oklch(0.26 0.012 285);
+  --color-line-strong: oklch(0.35 0.014 285);
+  --color-ink: oklch(0.96 0.005 285);
+  --color-ink-soft: oklch(0.85 0.01 285);
+  --color-muted: oklch(0.7 0.015 285);
+  --color-on-ink: oklch(0.13 0.006 285);
+
+  --color-violet: oklch(0.72 0.16 292);
+  --color-violet-soft: oklch(0.28 0.07 292);
+  --color-cyan: oklch(0.82 0.12 205);
+  --color-cyan-soft: oklch(0.28 0.05 205);
+  --color-amber: oklch(0.85 0.14 82);
+  --color-amber-soft: oklch(0.3 0.06 82);
+  --color-pink: oklch(0.76 0.15 350);
+  --color-pink-soft: oklch(0.28 0.07 350);
+
+  --color-accent: oklch(0.72 0.16 292);
+  --color-accent-hover: oklch(0.78 0.14 292);
+  --color-on-accent: oklch(0.15 0.03 292);
+  --color-focus: oklch(0.78 0.14 292);
+
+  --color-gain: oklch(0.8 0.17 150);
+  --color-gain-soft: oklch(0.3 0.07 150);
+  --color-loss: oklch(0.72 0.18 22);
+  --color-loss-soft: oklch(0.3 0.08 22);
+  --color-warn: oklch(0.85 0.14 82);
+
+  --ease-out-strong: cubic-bezier(0.23, 1, 0.32, 1);
+}
+
 :root {
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-  line-height: 1.5;
-  font-weight: 400;
-  color: #e5eef9;
   color-scheme: dark;
-  background:
-    radial-gradient(circle at top, rgba(56, 189, 248, 0.18), transparent 28%),
-    radial-gradient(circle at 80% 10%, rgba(45, 212, 191, 0.14), transparent 24%),
-    radial-gradient(circle at 20% 70%, rgba(14, 165, 233, 0.12), transparent 26%),
-    linear-gradient(180deg, #050816 0%, #081120 45%, #040710 100%);
+  font-family: var(--font-sans);
+  line-height: 1.55;
+  color: var(--color-ink);
+  background: var(--color-paper);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
@@ -25,56 +64,67 @@ body,
 }
 
 body {
-  min-height: 100vh;
+  min-height: 100dvh;
+  /* Two faint colour washes at the top give the black some depth without glowing. */
   background:
-    radial-gradient(circle at top, rgba(56, 189, 248, 0.16), transparent 28%),
-    linear-gradient(180deg, rgba(5, 8, 22, 0.98) 0%, rgba(4, 7, 16, 1) 100%);
+    radial-gradient(60rem 28rem at 12% -8rem, oklch(0.72 0.16 292 / 0.14), transparent 70%),
+    radial-gradient(48rem 24rem at 92% -6rem, oklch(0.82 0.12 205 / 0.09), transparent 70%),
+    var(--color-paper);
+  background-repeat: no-repeat;
 }
 
-* {
-  box-sizing: border-box;
+h1,
+h2,
+h3 {
+  text-wrap: balance;
 }
 
-body::before {
-  content: '';
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  background-image: linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
-  background-size: 72px 72px;
-  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.35), transparent 85%);
-  opacity: 0.15;
+p {
+  text-wrap: pretty;
 }
 
 ::selection {
-  background: rgba(45, 212, 191, 0.3);
-  color: #fff;
+  background: color-mix(in oklch, var(--color-focus) 25%, transparent);
 }
 
-/* Turkuaz yatay kaydırma çubuğu (trend fon kartları için) */
-.trend-scrollbar {
-  scrollbar-width: thin; /* Firefox */
-  scrollbar-color: #22d3ee rgba(255, 255, 255, 0.08); /* Firefox: thumb - track */
-  padding-bottom: 0.5rem;
+:focus-visible {
+  outline: 2px solid var(--color-focus);
+  outline-offset: 2px;
 }
 
-.trend-scrollbar::-webkit-scrollbar {
-  height: 8px;
+/* Prices, quantities and fund codes: monospaced so columns of numbers line up. */
+.tabular-nums {
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
 }
 
-.trend-scrollbar::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 9999px;
-  margin: 0 0.25rem;
+/* Thin, quiet horizontal scrollbar for wide tables on small screens. */
+.scroll-x {
+  overflow-x: auto;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-line-strong) transparent;
 }
 
-.trend-scrollbar::-webkit-scrollbar-thumb {
-  background: linear-gradient(90deg, #22d3ee, #2dd4bf);
-  border-radius: 9999px;
-  border: 2px solid rgba(5, 8, 22, 0.9);
+@keyframes fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
-.trend-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(90deg, #67e8f9, #5eead4);
+.animate-enter {
+  animation: fade-in 220ms var(--ease-out-strong) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-enter {
+    animation: none;
+  }
+  * {
+    transition-duration: 0ms !important;
+  }
 }

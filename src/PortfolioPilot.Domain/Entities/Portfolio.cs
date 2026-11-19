@@ -10,4 +10,5 @@ public class Portfolio
 
     public User? User { get; set; }
     public ICollection<InvestmentFund> InvestmentFunds { get; set; } = new List<InvestmentFund>();
+    public ICollection<FundTransaction> Transactions { get; set; } = new List<FundTransaction>();
 }

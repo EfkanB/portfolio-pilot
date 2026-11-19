@@ -66,6 +66,9 @@ cd src/PortfolioPilot.WebAPI
 
 dotnet restore
 
+# JWT signing key is NOT stored in appsettings.json — set it once per machine (min. 32 chars):
+dotnet user-secrets set "Jwt:Key" "<long-random-secret>"
+
 dotnet ef database update
 
 dotnet run
@@ -81,3 +84,26 @@ cd frontend
 npm install
 
 npm run dev
+
+**Running Tests**
+
+From the repository root:
+
+Bash
+
+dotnet test PortfolioPilot.sln
+
+## API Overview
+
+All `/api/Portfolio` endpoints and the `/portfolioHub` SignalR hub require a JWT (`Authorization: Bearer <token>`; the hub accepts `?access_token=`). Price updates are pushed only to the users who hold the fund.
+
+| Method | Route | Description |
+|---|---|---|
+| POST | `/api/Auth/register`, `/api/Auth/login` | Account & JWT |
+| GET / POST | `/api/Portfolio` | List / create portfolios |
+| DELETE | `/api/Portfolio/{id}` | Delete portfolio (funds + history) |
+| POST | `/api/Portfolio/{id}/funds` | Buy (weighted average cost) |
+| POST | `/api/Portfolio/{id}/funds/sell` | Sell `{ fundCode, quantity, price? }` — records realized P/L, rejects overselling |
+| DELETE | `/api/Portfolio/{id}/funds/{fundId}` | Remove a position (data correction, not a sale) |
+| GET | `/api/Portfolio/{id}/transactions` | Buy/sell history, newest first |
+| GET | `/api/Tefas/funds`, `/api/Tefas/quote/{code}` | Public TEFAS quotes |

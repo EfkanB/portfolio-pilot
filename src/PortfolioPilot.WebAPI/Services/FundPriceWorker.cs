@@ -41,6 +41,7 @@ public class FundPriceWorker : BackgroundService
             var hubContext = scope.ServiceProvider.GetRequiredService<IHubContext<PortfolioHub>>();
 
             var funds = await context.InvestmentFunds
+                .Include(fund => fund.Portfolio)
                 .AsTracking()
                 .ToListAsync(cancellationToken);
 
@@ -67,7 +68,17 @@ public class FundPriceWorker : BackgroundService
                     updatedCount++;
                 }
 
-                await hubContext.Clients.All.SendAsync("ReceivePriceUpdate", fundGroup.Key, latestPrice.Value, cancellationToken);
+                var ownerIds = fundGroup
+                    .Where(fund => fund.Portfolio is not null)
+                    .Select(fund => fund.Portfolio!.UserId.ToString())
+                    .Distinct()
+                    .ToList();
+
+                if (ownerIds.Count > 0)
+                {
+                    await hubContext.Clients.Users(ownerIds)
+                        .SendAsync(PortfolioHub.PriceUpdateMethod, fundGroup.Key, latestPrice.Value, cancellationToken);
+                }
             }
 
             if (updatedCount > 0)

@@ -153,6 +153,56 @@ namespace PortfolioPilot.Infrastructure.Migrations
                     b.ToTable("AspNetUserTokens", (string)null);
                 });
 
+            modelBuilder.Entity("PortfolioPilot.Domain.Entities.FundTransaction", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("AverageCostAtTrade")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime2");
+
+                    b.Property<string>("FundCode")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("nvarchar(50)");
+
+                    b.Property<string>("FundName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("nvarchar(200)");
+
+                    b.Property<Guid>("PortfolioId")
+                        .HasColumnType("uniqueidentifier");
+
+                    b.Property<decimal>("Price")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<decimal>("Quantity")
+                        .HasPrecision(18, 4)
+                        .HasColumnType("decimal(18,4)");
+
+                    b.Property<decimal?>("RealizedProfitLoss")
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(10)
+                        .HasColumnType("nvarchar(10)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PortfolioId", "CreatedAt");
+
+                    b.ToTable("FundTransactions");
+                });
+
             modelBuilder.Entity("PortfolioPilot.Domain.Entities.InvestmentFund", b =>
                 {
                     b.Property<Guid>("Id")
@@ -160,12 +210,12 @@ namespace PortfolioPilot.Infrastructure.Migrations
                         .HasColumnType("uniqueidentifier");
 
                     b.Property<decimal>("AverageCost")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<decimal>("CurrentPrice")
-                        .HasPrecision(18, 2)
-                        .HasColumnType("decimal(18,2)");
+                        .HasPrecision(18, 6)
+                        .HasColumnType("decimal(18,6)");
 
                     b.Property<string>("FundCode")
                         .IsRequired()
@@ -347,6 +397,17 @@ namespace PortfolioPilot.Infrastructure.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("PortfolioPilot.Domain.Entities.FundTransaction", b =>
+                {
+                    b.HasOne("PortfolioPilot.Domain.Entities.Portfolio", "Portfolio")
+                        .WithMany("Transactions")
+                        .HasForeignKey("PortfolioId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Portfolio");
+                });
+
             modelBuilder.Entity("PortfolioPilot.Domain.Entities.InvestmentFund", b =>
                 {
                     b.HasOne("PortfolioPilot.Domain.Entities.Portfolio", "Portfolio")
@@ -372,6 +433,8 @@ namespace PortfolioPilot.Infrastructure.Migrations
             modelBuilder.Entity("PortfolioPilot.Domain.Entities.Portfolio", b =>
                 {
                     b.Navigation("InvestmentFunds");
+
+                    b.Navigation("Transactions");
                 });
 
             modelBuilder.Entity("PortfolioPilot.Domain.Entities.User", b =>
